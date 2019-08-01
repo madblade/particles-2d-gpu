@@ -306,7 +306,7 @@ var WindGL = function WindGL(gl) {
     this.updateProgram = createProgram(gl, quadVert, updateFrag);
     this.quadBuffer = createBuffer(gl, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]));
     this.framebuffer = gl.createFramebuffer();
-    this.setColorRamp(defaultRampColors);
+    this.setColorRamp(palette2);
     this.resize();
 };
 
@@ -323,8 +323,7 @@ WindGL.prototype.resize = function resize () {
 WindGL.prototype.setColorRamp = function setColorRamp (colors) {
     // lookup texture for colorizing the particles according to their speed
     this.colorRampTexture = createTexture(this.gl, this.gl.LINEAR, getColorRamp(
-        // colors
-        palette2
+        colors
     ), 16, 16);
 };
 
@@ -406,7 +405,6 @@ WindGL.prototype.draw = function draw () {
     gl.disable(gl.STENCIL_TEST);
     bindTexture(gl, this.windTexture, 0);
     bindTexture(gl, this.particleStateTexture0, 1);
-    bindTexture(gl, this.convTexture, 3);
     this.drawScreen();
     this.updateParticles();
 };

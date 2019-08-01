@@ -1,3 +1,8 @@
+// Sign polyfill
+if (!Math.sign) {
+    Math.sign = function(x) { return x ? x < 0 ? -1 : 1 : 0; }
+}
+
 function createShader(gl, type, source) {
     var shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -265,18 +270,6 @@ var palette2 = {
     1.00: "#4575b4"
 };
 
-// for (var vi = 0; vi < nbVortices; ++vi) {
-//   var vp = vortices[vi];
-//   // Distance to current vortex
-//   var delta0 = vp[0] - xp;
-//   var delta1 = vp[1] - yp;
-//   var d2 = delta0 * delta0 + delta1 * delta1;
-//   // Extinction factor
-//   var extinction = Math.exp(-d2 / (vp[2] * gridScale));
-//   mean[0] += extinction * delta1 * vp[3];
-//   mean[1] += extinction * (-delta0 * vp[3]);
-// }
-
 var WindGL = function WindGL(gl) {
     this.gl = gl;
     this.fadeOpacity = 0.996; // how fast the particle trails fade on each frame
@@ -349,50 +342,57 @@ prototypeAccessors.numParticles.get = function () {
 };
 
 // TODO cleanup / get this out to another project.
-// WindGL.prototype.updateLuc = function() {
-//   var v = this.eightVortices;
-//   var s = this.eightSpeeds;
-//   var w1 = this.eightWeights1;
-//   var w2 = this.eightWeights2;
-//   var w = [...w1, ...w2];
-//   var mix = (min, max) => (x) => Math.max(min, Math.min(max, x));
-//   var maxSpeed = 0.0005;
-//
-//   for (var i = 0; i < 8; ++i) {
-//     var v1x = v[2 * i]; var v1y = v[2 * i + 1];
-//     var s1x = s[2 * i]; var s1y = s[2 * i + 1];
-//     var w1 = Math.abs(w[i]);
-//     var sign1 = Math.sign(w[i]);
-//     var ax = 0; var ay = 0;
-//
-//     for (var j = 0; j < 8; ++j) {
-//       if (j === i) continue;
-//       var v2x = v[2 * j]; var v2y = v[2 * j + 1];
-//       // var s2x = s[2 * j]; var s2y = s[2 * j + 1];
-//       var w2 = Math.abs(w[j]);
-//       var sign2 = Math.sign(w[j]);
-//
-//       var d = Math.sqrt(Math.pow(v1x - v2x, 2) + Math.pow(v1y - v2y, 2));
-//       d = Math.max(d, 0.001);
-//       var G = 0.00000001;
-//       var repulsion = -1.0; //sign1 === sign2 ? -1 : 1;
-//       var f = repulsion * G * w1 * w2 / (d * d);
-//       ax += f * (v2x - v1x) / d;
-//       ay += f * (v2y - v1y) / d;
-//     }
-//
-//     this.eightVortices[2 * i] = mix(0, 1)(v1x + s1x);
-//     this.eightVortices[2 * i + 1] = mix(0, 1)(v1y + s1y);
-//     this.eightSpeeds[2 * i] += mix(-maxSpeed, maxSpeed)(ax);
-//     this.eightSpeeds[2 * i + 1] += mix(-maxSpeed, maxSpeed)(ay);
-//
-//     v1x = this.eightVortices[2 * i];
-//     v1y = this.eightVortices[2 * i + 1];
-//     //  var c = 10;
-//     if (v1x <= 0 || v1x >= 1) this.eightSpeeds[2 * i] = -s1x;
-//     if (v1y <= 0 || v1y >= 1) this.eightSpeeds[2 * i + 1] = -s1y;
-//   }
-// };
+WindGL.prototype.updateGLVF = function() {
+  var v = this.eightVortices;
+  var s = this.eightSpeeds;
+  var w1 = this.eightWeights1;
+  var w2 = this.eightWeights2;
+  var w = [];
+  for (var i = 0; i < w1.length; ++i) w.push(w1[i]);
+  for (var i = 0; i < w2.length; ++i) w.push(w2[i]);
+
+  var mix = function(min, max) {
+      return function(x) {
+        return Math.max(min, Math.min(max, x));
+      };
+  };
+  var maxSpeed = 0.0005;
+
+  for (var i = 0; i < 8; ++i) {
+    var v1x = v[2 * i]; var v1y = v[2 * i + 1];
+    var s1x = s[2 * i]; var s1y = s[2 * i + 1];
+    var w1 = Math.abs(w[i]);
+    var sign1 = Math.sign(w[i]);
+    var ax = 0; var ay = 0;
+
+    for (var j = 0; j < 8; ++j) {
+      if (j === i) continue;
+      var v2x = v[2 * j]; var v2y = v[2 * j + 1];
+      // var s2x = s[2 * j]; var s2y = s[2 * j + 1];
+      var w2 = Math.abs(w[j]);
+      var sign2 = Math.sign(w[j]);
+
+      var d = Math.sqrt(Math.pow(v1x - v2x, 2) + Math.pow(v1y - v2y, 2));
+      d = Math.max(d, 0.001);
+      var G = 0.00000001;
+      var repulsion = -1.0; //sign1 === sign2 ? -1 : 1;
+      var f = repulsion * G * w1 * w2 / (d * d);
+      ax += f * (v2x - v1x) / d;
+      ay += f * (v2y - v1y) / d;
+    }
+
+    this.eightVortices[2 * i] = mix(0, 1)(v1x + s1x);
+    this.eightVortices[2 * i + 1] = mix(0, 1)(v1y + s1y);
+    this.eightSpeeds[2 * i] += mix(-maxSpeed, maxSpeed)(ax);
+    this.eightSpeeds[2 * i + 1] += mix(-maxSpeed, maxSpeed)(ay);
+
+    v1x = this.eightVortices[2 * i];
+    v1y = this.eightVortices[2 * i + 1];
+    //  var c = 10;
+    if (v1x <= 0 || v1x >= 1) this.eightSpeeds[2 * i] = -s1x;
+    if (v1y <= 0 || v1y >= 1) this.eightSpeeds[2 * i + 1] = -s1y;
+  }
+};
 
 WindGL.prototype.setWind = function setWind (windData) {
     this.windData = windData;
@@ -524,9 +524,6 @@ var palette = [
 
 // Draw objects
 var af;
-var buckets = [];
-var NUMBER_BUCKETS = palette.length;
-var particles = [];
 var DOMElement;
 
 // Simulation vars
@@ -537,28 +534,12 @@ var gridScale = 100 * Math.sqrt(2);
 var nbSamples;
 var simulationType = 'gaussian';
 
-// Simulation objects
-var vortices = [];
-var vortexSpeeds = [];
-var vortexRanges = [];
-var nbVortices = 100;
-var MAX_VORTEX_NUMBER = 150;
-var maxVectorFieldNorm = 5;
-
 // Interaction objects
 var isRightMouseDown = false;
 var isLeftMouseDown = false;
-var vortexAugmentationTimeout;
-var REFRESH_RATE = 16; // 60 fps
 var mouseRepulsionActive = false;
 var mousePosition = [0, 0];
 
-var g = null;
-
-// var stamp1 = 0;
-// var maxNumberParticles = 30000;
-// var currentNumberParticles = 100;
-var gl = null;
 var windGL = null;
 var heightVF = 180;
 var widthVF = 360;
@@ -571,9 +552,6 @@ var Windy =
         {
             this.end();
             DOMElement = element;
-            // g = DOMElement.getContext("2d");
-
-            // Internet Explorer
 
             windGL = new WindGL(gl);
             windGL.numParticles = nbParticles;
@@ -584,19 +562,9 @@ var Windy =
             gridSize = xPixels * yPixels;
             gridScale = Math.sqrt(Math.pow(xPixels, 2) + Math.pow(yPixels, 2));
             nbSamples = nbParticles;
-            // nbSamples = currentNumberParticles;
-            // maxNumberParticles = nbParticles;
 
             if (type) simulationType = type;
-            vortices = [];
-            vortexSpeeds = [];
-            vortexRanges = [];
-            particles = [];
-            buckets = [];
 
-            this.makeVectorField();
-            this.makeBuckets();
-            this.makeParticles();
             this.animate();
 
             var windy = document.getElementById('windy');
@@ -615,18 +583,13 @@ var Windy =
             var c = 0;
             staticVF = new Uint8Array(heightVF * widthVF);
             for (var i = 0; i < heightVF; ++i) {
-              var px = (i / heightVF) * xPixels;
               for (var j = 0; j < widthVF; ++j) {
-                var py = (j / widthVF) * yPixels;
-                var vec2 = this.computeVectorFieldAt(px, py);
-                if (!vec2) vec2 = [0, 0];
-                staticVF[c++] = vec2[0];
-                staticVF[c++] = vec2[1];
+                staticVF[c++] = 0;
+                staticVF[c++] = 0;
               }
             }
 
-            var fac = 4.0;
-            var data = {
+            return {
                 width: DOMElement.offsetWidth ,
                 height: DOMElement.offsetHeight ,
                 uMin: 0, // -21.32,
@@ -635,355 +598,22 @@ var Windy =
                 vMax: 30, // 21.42,
                 image: staticVF
             };
-
-            // if (!window.done) console.log(staticVF);
-            // window.done = true;
-
-            return data;
         },
 
         animate: function() {
             af = requestAnimationFrame(this.animate.bind(this));
-            // var deltaT = Date.now() - stamp1;
-            // var fps = 30;
-            // var deltaThreshold = 1000 / fps;
-            // if (deltaT < deltaThreshold) return;
-            // stamp1 = Date.now();
-
-            // this.update();
-            // this.draw();
 
             if (!windGL.windData) {
                 var wd = this.updateVF();
                 windGL.windData = wd;
             }
             if (windGL.windData) {
-                // windGL.updateLuc();
+                windGL.updateGLVF();
                 windGL.draw();
-            }
-            // var stamp2 = ;
-            // var deltaTime = Date.now() - stamp1;
-            // if (deltaTime < 1000) {
-            //   var numberOfParticlesToAdd = Math.min(100, maxNumberParticles - currentNumberParticles);
-            //   if (numberOfParticlesToAdd > 0) {
-            //     currentNumberParticles = currentNumberParticles + numberOfParticlesToAdd;
-            //     nbSamples = currentNumberParticles;
-            //     for (var i = 0; i < numberOfParticlesToAdd; ++i)
-            //       particles.push(this.newParticle(i));
-            //   }
-            // } else {
-            //   var numberOfParticlesToRemove = Math.min(0, currentNumberParticles - 100);
-            //   if (numberOfParticlesToRemove > 0) {
-            //     currentNumberParticles = currentNumberParticles - numberOfParticlesToRemove;
-            //     nbSamples = currentNumberParticles;
-            //     for (var i = 0; i < numberOfParticlesToRemove; ++i)
-            //       particles.pop();
-            //   }
-            // }
-        },
-
-        makeBuckets: function() {
-            // 1 bucket per color, NUMBER_BUCKETS colors.
-            buckets = Array.apply(null, new Array(NUMBER_BUCKETS)).map(function(){return []});
-                // Array.from(Array(NUMBER_BUCKETS).keys()).map(function(){return []});
-        },
-
-        addParticleToDrawBucket: function(particle, vector) {
-            var maxVectorNorm = maxVectorFieldNorm;
-            var thisVectorNorm = this.computeNorm(vector);
-            var nbBuckets = buckets.length;
-
-            var bucketIndex =
-                thisVectorNorm < 0.001 ? 0 :
-                    thisVectorNorm >= maxVectorNorm ? nbBuckets - 1 :
-                        Math.ceil(nbBuckets * thisVectorNorm / maxVectorNorm);
-
-            bucketIndex = bucketIndex >= buckets.length ? bucketIndex - 1 : bucketIndex;
-            buckets[bucketIndex].push(particle);
-        },
-
-        makeParticles: function() {
-            particles = [];
-            for (var i = 0; i < nbSamples; ++i)
-                particles.push(this.newParticle(i));
-        },
-
-        newParticle: function(particleRank) {
-            var x0 = Math.floor(Math.random() * xPixels);
-            var y0 = Math.floor(Math.random() * yPixels);
-            return {
-                x: x0,
-                y: y0,
-                xt: x0 + 0.01 * Math.random(),
-                yt: y0 + 0.01 * Math.random(),
-                age: Math.floor(Math.random() * MAX_PARTICLE_AGE),
-                rank: particleRank
-            };
-        },
-
-        evolveVectorField: function() {
-            for (var vortex1Id = 0; vortex1Id < nbVortices; ++vortex1Id) {
-                var vortex1 = vortices[vortex1Id];
-                var o1 = vortex1[3] > 0; // orientation
-                var mass1 = Math.abs(vortex1[3]);
-                var charge1 = vortex1[2];
-                var acceleration = [0, 0];
-                // repulsion
-                var coeff = 1 / gridScale; // 0.1;
-
-                for (var vortex2Id = 0; vortex2Id < nbVortices; ++vortex2Id) {
-                    if (vortex2Id === vortex1Id) continue;
-
-                    var vortex2 = vortices[vortex2Id];
-                    var o2 = vortex2[3] > 0;
-
-                    var delta0 = coeff * (vortex1[0] - vortex2[0]);
-                    var delta1 = coeff * (vortex1[1] - vortex2[1]);
-                    var d2 =
-                        Math.pow(delta0, 2) +
-                        Math.pow(delta1, 2);
-
-                    // Everything is repulsive
-                    var sign = 1;
-                    // Same sign vortices are attracted, opposite sign are repulsed
-                    // o1 === o2 ? 1 : -1;
-
-                    // !! Eulerian physics
-                    // !! Charge could also be vortexI[3]
-                    // !! Mass could also be vortexI[2]
-                    var charge2 = vortex2[2];
-                    var mass2 = Math.abs(vortex2[3]);
-                    if (Math.abs(delta0) > 0.0001)
-                        acceleration[0] += sign * Math.abs(charge1 * charge2 * mass1 * mass2) * delta0 /
-                            (d2 * d2 * Math.abs(delta0));
-                    if (Math.abs(delta1) > 0.0001)
-                        acceleration[1] += sign * Math.abs(charge1 * charge2 * mass1 * mass2) * delta1 /
-                            (d2 * d2 * Math.abs(delta1));
-                }
-
-                // Add four walls
-                // coeff = 0.5;
-                var v0x = coeff * vortex1[0]; var v0y = coeff * vortex1[1];
-                var d0x = - coeff * xPixels + v0x; var d0y = - coeff * yPixels + v0y;
-                var da = 0;
-                if (Math.abs(v0x) > 0.001) {
-                    da = (v0x) / (v0x * v0x * Math.abs(v0x));
-                    acceleration[0] += da;
-                    acceleration[1] += da * Math.sign(vortex1[3]);
-                }
-                if (Math.abs(d0x) > 0.001) {
-                    da = (d0x) / (d0x * d0x * Math.abs(d0x));
-                    acceleration[0] += da;
-                    acceleration[1] += da * Math.sign(vortex1[3]);
-                }
-                if (Math.abs(v0y) > 0.001) {
-                    da = (v0y) / (v0y * v0y * Math.abs(v0y));
-                    acceleration[1] += da;
-                    acceleration[0] -= da * Math.sign(vortex1[3]);
-                }
-                if (Math.abs(d0y) > 0.001) {
-                    da = (d0y) / (d0y * d0y * Math.abs(d0y));
-                    acceleration[1] += da;
-                    acceleration[0] -= da * Math.sign(vortex1[3]);
-                }
-
-                // Add mouse
-                if (mouseRepulsionActive) {
-                    coeff *= 0.4;
-                    var deltaX = coeff * (vortex1[0] - mousePosition[0]);
-                    var deltaY = coeff * (vortex1[1] - mousePosition[1]);
-                    var dist = deltaX * deltaX + deltaY * deltaY;
-                    // Doesn't seem to matter after all...
-                    if (Math.abs(deltaX) > 0.001) acceleration[0] += deltaX / (dist * dist * Math.abs(deltaX));
-                    if (Math.abs(deltaY) > 0.001) acceleration[1] += deltaY / (dist * dist * Math.abs(deltaY));
-                }
-
-                var speedX = vortexSpeeds[vortex1Id][0] + 0.000001 * acceleration[0];
-                var speedY = vortexSpeeds[vortex1Id][1] + 0.000001 * acceleration[1];
-
-                vortexSpeeds[vortex1Id][0] = Math.sign(speedX) * Math.min(Math.abs(speedX), 0.3);
-                vortexSpeeds[vortex1Id][1] = Math.sign(speedY) * Math.min(Math.abs(speedY), 0.3);
-
-                var np0 = vortex1[0] + vortexSpeeds[vortex1Id][0];
-                var np1 = vortex1[1] + vortexSpeeds[vortex1Id][1];
-                vortex1[0] = Math.min(Math.max(np0, 0), xPixels);
-                vortex1[1] = Math.min(Math.max(np1, 0), yPixels);
-
-                // Update swiper.
-                vortexRanges[vortex1Id] = this.computeVortexRange(vortex1);
-            }
-        },
-
-        computeVortexRange: function(vortex) {
-            var fadeCoefficient = 100;
-            return [
-                vortex[0] - vortex[2] * fadeCoefficient,
-                vortex[0] + vortex[2] * fadeCoefficient,
-                vortex[1] - vortex[2] * fadeCoefficient,
-                vortex[1] + vortex[2] * fadeCoefficient
-            ]
-        },
-
-        computeVectorFieldAt: function(xp, yp)
-        {
-            if (xp <= 1 || xp >= xPixels - 1 || yp <= 1 || yp >= yPixels - 1)
-                return null;
-
-            var mean = [0, 0];
-            for (var vi = 0; vi < nbVortices; ++vi) {
-                var vp = vortices[vi];
-                var bounds = vortexRanges[vi];
-                if (xp < bounds[0] || xp > bounds[1] || yp < bounds[2] || yp > bounds[3])
-                    continue;
-
-                // Distance to current vortex
-                var delta0 = vp[0] - xp;
-                var delta1 = vp[1] - yp;
-                var d2 = delta0 * delta0 + delta1 * delta1;
-
-                // To be clear with what we do here:
-                // var gamma = vp[2] * gridScale;
-                // var delta = [vp[0] - xp, vp[1] - yp, 0];
-                // var up = [0, 0, vp[3]];
-
-                // Cross product (the one used there)
-                // var cross = [delta[1] * up[2], -delta[0] * up[2]];
-
-                // Cute but odd (mangled cross product, interesting visual)
-                // var cross = [delta[0] * up[2], -delta[1] * up[2]];
-
-                var extinction = Math.exp(-d2 / (vp[2] * gridScale));
-                mean[0] += extinction * delta1 * vp[3];    // cross[0];
-                mean[1] += extinction * (-delta0 * vp[3]); // cross[1];
-            }
-
-            return mean;
-        },
-
-        makeVectorField: function() {
-            vortices.length = 0;
-            for (var v = 0; v < nbVortices; ++v) {
-                var sg = Math.random() > 0.5 ? 1 : -1;
-                var newVortex = [
-                    Math.min(Math.random() * xPixels + 20, xPixels - 20), // x position
-                    Math.min(Math.random() * yPixels + 20, yPixels - 20), // y position
-                    5.0 * Math.max(0.25, Math.random()), // gaussian range
-                    0.2 * sg * Math.max(Math.min(Math.random(), 0.5), 0.4) // gaussian intensity and clockwiseness
-                ];
-
-                vortices.push(newVortex);
-
-                // Initial speeds
-                vortexSpeeds.push([
-                    0, // Math.random() - 0.5,
-                    0  // Math.random() - 0.5
-                ]);
-
-                vortexRanges.push(this.computeVortexRange(newVortex));
-            }
-        },
-
-        isNullVectorFieldAt: function(fx, fy)
-        {
-            return (fx <= 1 || fx >= xPixels - 1 || fy <= 1 || fy >= yPixels - 1);
-        },
-
-        computeNorm: function(vector) {
-            return Math.sqrt(Math.pow(vector[0], 2) + Math.pow(vector[1], 2));
-        },
-
-        update: function() {
-            // Empty buckets.
-            for (var b = 0; b < buckets.length; ++b) buckets[b].length = 0;
-
-            // Move particles and add them to buckets.
-            for (var p = 0; p < particles.length; ++p) {
-                var particle = particles[p];
-
-                if (particle.age > MAX_PARTICLE_AGE) {
-                    particles[particle.rank] = this.newParticle(particle.rank);
-                }
-
-                var x = particle.x;
-                var y = particle.y;
-                var v = this.computeVectorFieldAt(x, y);  // vector at current position
-
-                if (v === null) {
-                    // This particle is outside the grid
-                    particle.age = MAX_PARTICLE_AGE;
-                } else {
-                    var xt = x + 0.1 * v[0];
-                    var yt = y + 0.1 * v[1];
-
-                    if (!this.isNullVectorFieldAt(xt, yt)) {
-                        // The path of this particle is visible
-                        particle.xt = xt;
-                        particle.yt = yt;
-
-                        if (Math.abs(x - xt) > 0.05 || Math.abs(y - yt) > 0.05) {
-                            this.addParticleToDrawBucket(particle, v);
-                        }
-                    } else {
-                        // This particle isn't visible, but still moves through the field.
-                        particle.x = xt;
-                        particle.y = yt;
-                    }
-                }
-
-                particle.age += 1;
-            }
-
-            this.evolveVectorField();
-        },
-
-        // Enhancement: try out twojs
-        // (Not fan of the loading overhead)
-        draw: function() {
-            g.lineWidth = PARTICLE_LINE_WIDTH;
-            g.fillStyle = FADE_FILL_STYLE;
-            g.mozImageSmoothingEnabled = false;
-            g.webkitImageSmoothingEnabled = false;
-            g.msImageSmoothingEnabled = false;
-            g.imageSmoothingEnabled = false;
-
-            // Fade existing particle trails.
-            var prev = g.globalCompositeOperation;
-            g.globalCompositeOperation = "destination-in";
-            // g.fillStyle = "#ffffff";
-            // g.fillStyle = "#000000";
-            g.fillRect(0, 0, xPixels, yPixels);
-            g.globalCompositeOperation = prev;
-
-            // Draw new particle trails.
-            var nbBuckets = buckets.length;
-            for (var b = 0; b < nbBuckets; ++b) {
-                var bucket = buckets[b];
-                if (bucket.length > 0) {
-                    g.beginPath();
-                    g.strokeStyle = palette[b];
-                    for (var p = 0; p < bucket.length; ++p) {
-                        var particle = bucket[p];
-                        var x = particle.x;
-                        var xt = particle.xt;
-                        var y = particle.y;
-                        var yt = particle.yt;
-                        // (This was for better extremal sampling:)
-                        // g.moveTo(x - (xt - x) * 1.1, y - (yt - y) * 1.1);
-                        // g.lineTo(xt + (xt - x) * 1.1, yt + (yt - y) * 1.1);
-                        g.moveTo(x, y);
-                        g.lineTo(xt, yt);
-                        particle.x = xt;
-                        particle.y = yt;
-                    }
-                    g.stroke();
-                }
             }
         },
 
         getEventPositionInCanvas: function(event) {
-            // YES, this is quick and dirty, please <i>please</i> be indulgent.
-            // jQuery would have been a loading overhead
-            // (Hyphenator is an overhead as well, but it is mandatory for Fr support).
             var windyElement = document.getElementById('windy');
             var rect = windyElement.getBoundingClientRect();
             var top = rect.top;
@@ -1011,59 +641,18 @@ var Windy =
                 event.which ? (event.which === 3) :
                     event.button ? event.button === 2 : false;
 
-            // We make it so the added vortex is always the last.
-            var newVortex = [sx, sy, 1, rightclick ? -0.1 : 0.1];
-            var newRange = this.computeVortexRange(newVortex);
-            if (nbVortices < MAX_VORTEX_NUMBER) {
-                nbVortices += 1;
-            } else {
-                vortices.shift();
-                vortexRanges.shift();
-                vortexSpeeds.shift();
-            }
-            vortices.push(newVortex);
-            vortexRanges.push(newRange);
-            vortexSpeeds.push([0, 0]);
-
-            // Then we can progressively augment the size and speed of the created vortex.
-            vortexAugmentationTimeout = setTimeout(
-                this.augmentCreatedVortex.bind(this), REFRESH_RATE
-            );
-        },
-
-        augmentCreatedVortex: function() {
-            var lastVortexIndex = vortices.length - 1;
-            var lastVortex = vortices[lastVortexIndex];
-
-            if (mouseRepulsionActive) {
-                lastVortex[0] = mousePosition[0];
-                lastVortex[1] = mousePosition[1];
-            }
-
-            // Augment vortex.
-            lastVortex[2] = Math.min(lastVortex[2] + 0.02, 5);
-            if (lastVortex[3] > 0)
-                lastVortex[3] = Math.min(lastVortex[3] + 0.01, 0.2);
-            else
-                lastVortex[3] = Math.max(lastVortex[3] - 0.01, -0.2);
-
-            // Recompute vortex range.
-            // Not strictly necessary: this is done at every vortex field evolution.
-            vortexRanges[lastVortexIndex] = this.computeVortexRange(lastVortex);
-
-            // Call again.
-            vortexAugmentationTimeout = setTimeout(
-                this.augmentCreatedVortex.bind(this), REFRESH_RATE
-            );
+            // ... do something here (user interaction?)
         },
 
         mouseUpCallback: function(event) {
             mouseRepulsionActive = false;
 
             event.preventDefault();
-            clearTimeout(vortexAugmentationTimeout);
+            // clearTimeout(myTimeout);
 
             isLeftMouseDown = false;
+
+            // ... do something here (user interaction?)
         },
 
         mouseMoveCallback: function(event) {
@@ -1082,20 +671,7 @@ var Windy =
                 return;
             }
 
-            var lastVortexIndex = vortices.length - 1;
-            var lastVortex = vortices[lastVortexIndex];
-
-            var oldX = lastVortex[0];
-            var oldY = lastVortex[1];
-            var lastSpeed = vortexSpeeds[lastVortexIndex];
-            var deltaX = sx - oldX;
-            var deltaY = sy - oldY;
-
-            lastSpeed[0] = Math.sign(deltaX) * Math.sqrt(Math.pow(deltaX / 500, 2));
-            lastSpeed[1] = Math.sign(deltaY) * Math.sqrt(Math.pow(deltaY / 500, 2));
-
-            lastVortex[0] = sx;
-            lastVortex[1] = sy;
+            // ... do something here (user interaction?)
         }
     };
 

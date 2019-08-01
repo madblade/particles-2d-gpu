@@ -187,12 +187,6 @@ var updateFrag = "precision highp float;\n\n" +
     "    // return texture2D(u_wind, uv).rg; // lower-res hardware filtering\n" +
     "    vec2 px = 1.0 / u_wind_res;\n" +
     "    vec2 vc = (floor(uv * u_wind_res)) * px;\n" +
-    // "    vec2 f = fract(uv * u_wind_res);\n" +
-    // "    vec2 tl = texture2D(u_wind, vc).rg;\n" +
-    // "    vec2 tr = texture2D(u_wind, vc + vec2(px.x, 0)).rg;\n" +
-    // "    vec2 bl = texture2D(u_wind, vc + vec2(0, px.y)).rg;\n" +
-    // "    vec2 br = texture2D(u_wind, vc + px).rg;\n" +
-    // "    return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);\n" +
     "    float facX = u_wind_res.x > u_wind_res.y ? u_wind_res.x / u_wind_res.y : 1.0;\n" +
     "    float facY = u_wind_res.x > u_wind_res.y ? 1.0 : u_wind_res.y / u_wind_res.x;\n" +
     "    vec2 n = normalize(u_wind_res);\n" +
@@ -231,9 +225,7 @@ var updateFrag = "precision highp float;\n\n" +
     "    float speed_t = length(velocity) / length(u_wind_max);\n\n" +
     "    // take EPSG:4236 distortion into account for calculating where the particle moved\n" +
     "    float distortion = cos(radians(pos.y * 180.0 - 90.0)) + 0.1;\n" +
-    // "    vec2 offset = vec2(velocity.x / 1.0, -velocity.y) * 0.0001 * u_speed_factor;\n\n" +
     "    vec2 offset = vec2(velocity.x * distortion, -velocity.y) * 0.0001 * u_speed_factor;\n\n" +
-    // No distortion
     "    // update particle position, wrapping around the date line\n" +
     "    pos = fract(1.0 + pos + offset);\n\n" +
     "    // a random seed to use for the particle drop\n" +
@@ -245,14 +237,10 @@ var updateFrag = "precision highp float;\n\n" +
     "        rand(seed + 1.3),\n" +
     "        rand(seed + 2.1));\n" +
     "    pos = mix(pos, random_pos, drop);\n\n" +
-    // "    if (distance(mix(u_wind_min, u_wind_max, lookup_wind(pos)), vec2(0.0)) < 1.0) {\n" +
-    // "        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);" +
-    // "    } else {\n" +
     "        // encode the new particle position back into RGBA\n" +
     "        gl_FragColor = vec4(\n" +
     "            fract(pos * 255.0),\n" +
     "            floor(pos * 255.0) / 255.0);\n" +
-    // "    }\n" +
     "}\n";
 
 
@@ -283,10 +271,10 @@ var WindGL = function WindGL(gl) {
         0.5, 0.2,    0.8, 0.3
     ];
     this.eightWeights1 = [
-        2, 2, -2, 2
+        1, 3, -6, 2
     ];
     this.eightWeights2 = [
-        2, -2, -2, 2
+        2, -4, -2, 4
     ];
     this.eightSpeeds = [
         0.0, 0.0,    0.0, 0.0,
@@ -358,6 +346,7 @@ WindGL.prototype.updateGLVF = function() {
   };
   var maxSpeed = 0.0005;
 
+  var G = 0.00000001;
   for (var i = 0; i < 8; ++i) {
     var v1x = v[2 * i]; var v1y = v[2 * i + 1];
     var s1x = s[2 * i]; var s1y = s[2 * i + 1];
@@ -374,11 +363,22 @@ WindGL.prototype.updateGLVF = function() {
 
       var d = Math.sqrt(Math.pow(v1x - v2x, 2) + Math.pow(v1y - v2y, 2));
       d = Math.max(d, 0.001);
-      var G = 0.00000001;
       var repulsion = -1.0; //sign1 === sign2 ? -1 : 1;
       var f = repulsion * G * w1 * w2 / (d * d);
       ax += f * (v2x - v1x) / d;
       ay += f * (v2y - v1y) / d;
+    }
+
+    if (mouseRepulsionActive) {
+        var v2x = mousePosition[0] / xPixels;
+        var v2y = mousePosition[1] / yPixels;
+        var d = Math.sqrt(Math.pow(v1x - v2x, 2) + Math.pow(v1y - v2y, 2));
+        d = Math.max(d, 0.001);
+        var w2 = 1.0;
+        var repulsion = isLeftMouseDown ? -1.0 : 1.0; //sign1 === sign2 ? -1 : 1;
+        var f = repulsion * G * w1 * w2 / (d * d);
+        ax += f * (v2x - v1x) / d;
+        ay += f * (v2y - v1y) / d;
     }
 
     this.eightVortices[2 * i] = mix(0, 1)(v1x + s1x);
@@ -501,27 +501,6 @@ function getColorRamp(colors) {
 }
 
 
-// TODO [REFACTOR] Make this a clean module.
-var PARTICLE_LINE_WIDTH = 1;
-var MAX_PARTICLE_AGE = 10000;
-var FADE_FILL_STYLE = 'rgba(0, 0, 0, 0.97)';
-
-// The palette can be easily tuned by adding colors.
-var palette = [
-    "#d73027",
-    "#d73027",
-    "#f46d43",
-    "#f46d43",
-    "#fdae61",
-    "#fee090",
-    "#ffffbf",
-    "#e0f3f8",
-    "#abd9e9",
-    "#74add1",
-    "#6694d1",
-    "#4575b4"
-];
-
 // Draw objects
 var af;
 var DOMElement;
@@ -628,7 +607,7 @@ var Windy =
                     'without a mouseup.');
                 return;
             }
-            isLeftMouseDown = true;
+            mouseRepulsionActive = true;
 
             // Get coordinates for the click.
             var positionInCanvas = this.getEventPositionInCanvas(event);
@@ -636,10 +615,12 @@ var Windy =
             var sy = positionInCanvas[1];
 
             // Kind of a polyfill for detecting a right-click,
-            // No jQuery should be involved.
             var rightclick =
                 event.which ? (event.which === 3) :
                     event.button ? event.button === 2 : false;
+
+            isLeftMouseDown = !rightclick;
+            isRightMouseDown = rightclick;
 
             // ... do something here (user interaction?)
         },
@@ -651,6 +632,7 @@ var Windy =
             // clearTimeout(myTimeout);
 
             isLeftMouseDown = false;
+            isRightMouseDown = false;
 
             // ... do something here (user interaction?)
         },
@@ -666,9 +648,11 @@ var Windy =
             mousePosition = [sx, sy];
 
             // Check mouse status
-            if (!isLeftMouseDown && !isRightMouseDown) {
+            if (isLeftMouseDown || isRightMouseDown) {
                 mouseRepulsionActive = true;
                 return;
+            } else {
+                mouseRepulsionActive = false;
             }
 
             // ... do something here (user interaction?)

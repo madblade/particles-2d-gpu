@@ -50,7 +50,7 @@ function animate() {
    element.style.height = height.toString();
 
    var nbSamples =
-       Math.floor(Math.min(25 * width * height / 2000, 30000));
+       Math.floor(Math.min(25 * width * height / 500, 30000));
 
    if (enforceParticleNumber > 0) nbSamples = enforceParticleNumber;
 

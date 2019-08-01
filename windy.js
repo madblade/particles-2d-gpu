@@ -91,18 +91,6 @@ var drawVert = "precision mediump float;\n\n" +
     "    gl_Position = vec4(2.0 * v_particle_pos.x - 1.0, 1.0 - 2.0 * v_particle_pos.y, 0, 1);\n" +
     "}\n";
 
-// for (var vi = 0; vi < nbVortices; ++vi) {
-//   var vp = vortices[vi];
-//   // Distance to current vortex
-//   var delta0 = vp[0] - xp;
-//   var delta1 = vp[1] - yp;
-//   var d2 = delta0 * delta0 + delta1 * delta1;
-//   // Extinction factor
-//   var extinction = Math.exp(-d2 / (vp[2] * gridScale));
-//   mean[0] += extinction * delta1 * vp[3];
-//   mean[1] += extinction * (-delta0 * vp[3]);
-// }
-
 var drawFrag = "precision mediump float;\n\n" +
     "uniform mat4 luc;\n" +
     "uniform vec4 lucQ;\n" +
@@ -141,16 +129,12 @@ var drawFrag = "precision mediump float;\n\n" +
     "    }\n" +
     "    vel[0] += 0.05;\n" +
     "    vec2 velocity = mix(u_wind_min, u_wind_max, vel);\n" +
-    // "    vec2 velocity = mix(u_wind_min, u_wind_max, texture2D(u_wind, v_particle_pos).rg);\n" +
-    "    float speed_t = length(velocity) / length(u_wind_max);\n\n" +
+    "    float speed_t = 8.0 * length(velocity) / length(u_wind_max);\n\n" +
     "    // color ramp is encoded in a 16x16 texture\n" +
     "    vec2 ramp_pos = vec2(\n" +
     "        fract(16.0 * speed_t),\n" +
     "        floor(16.0 * speed_t) / 16.0);\n\n" +
     "    vec4 outputColor = texture2D(u_color_ramp, ramp_pos);\n" +
-    "    float powSpeedT = 10.0 * speed_t;\n" +
-    "    outputColor[0] = max(powSpeedT, outputColor[0]);\n" +
-    // "    outputColor[1] = powSpeedT;\n" +
     "    gl_FragColor = outputColor;\n" +
     "}\n";
 
@@ -266,48 +250,32 @@ var updateFrag = "precision highp float;\n\n" +
     // "    }\n" +
     "}\n";
 
+
 var palette2 = {
-    0.0: '#6a5b4e',
-    0.1: '#826f69',
-    0.2: '#9c897f',
-    0.3: '#c4a898',
-    0.4: '#d8c7a6',
-    0.5: '#f1d6bb',
-    0.6: '#f6e3ce',
-    1.0: '#fff0d4'
+    0.09: "#d73027",
+    0.18: "#f46d43",
+    0.27: "#f46d43",
+    0.36: "#fdae61",
+    0.45: "#fee090",
+    0.54: "#ffffbf",
+    0.63: "#e0f3f8",
+    0.72: "#abd9e9",
+    0.81: "#74add1",
+    0.90: "#6694d1",
+    1.00: "#4575b4"
 };
 
-var palette3 = {
-    0.0: '#3288bd',
-    0.1: '#66c2a5',
-    0.2: '#abdda4',
-    0.3: '#e6f598',
-    0.4: '#fee08b',
-    0.5: '#fdae61',
-    0.6: '#f46d43',
-    1.0: '#d53e4f'
-};
-
-var defaultRampColors = {
-    // 1.0: "#d73027",
-    // 0.4: "#f46d43",
-    // 0.3: "#fdae61",
-    // 0.2: "#fee090",
-    1.0: "#4575b4",
-    0.4: "#4575b4",
-    0.3: "#4575b4",
-    0.2: "#4575b4",
-    // 0.4: "#ffffbf",
-    // 0.3: "#e0f3f8",
-    // 0.2: "#abd9e9",
-    0.1: "#4575b4",
-    0.05: "#6694d1",
-    0.01: "#6694d1",
-    0.001: "#6694d1",
-    0.0001: "#6694d1",
-    0.0: "#4575b4"
-};
-
+// for (var vi = 0; vi < nbVortices; ++vi) {
+//   var vp = vortices[vi];
+//   // Distance to current vortex
+//   var delta0 = vp[0] - xp;
+//   var delta1 = vp[1] - yp;
+//   var d2 = delta0 * delta0 + delta1 * delta1;
+//   // Extinction factor
+//   var extinction = Math.exp(-d2 / (vp[2] * gridScale));
+//   mean[0] += extinction * delta1 * vp[3];
+//   mean[1] += extinction * (-delta0 * vp[3]);
+// }
 
 var WindGL = function WindGL(gl) {
     this.gl = gl;
